@@ -1,14 +1,17 @@
 language: node_js
 
 node_js:
-  - "0.10"
-  - "0.8"
-  - "0.6"
+ - "0.10"
+ - "0.8"
+ - "0.6"
 
-before_script: "npm install mocha"
+install:
+ - npm install
+ - npm install mocha
+ - npm test
+
+before_script: "make clean"
 
 script:
- - npm install
- - npm test
- - make clean
  - npm install --stage
+ - npm test
