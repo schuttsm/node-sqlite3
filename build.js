@@ -1,6 +1,18 @@
 #!/usr/bin/env node
 
 // script adapted from https://github.com/laverdet/node-fibers
+/*
+TODO
+ - be able to target multiple node versions and arches
+   - so, enable build to request downloading and caching more than one
+ - move to tar.gz not just .gz
+ - use process.versions.modules?
+ - use require() to support node_modules location of binary?
+
+ https://github.com/isaacs/npm/issues/1891#issuecomment-17051356
+ https://github.com/joyent/node/issues/4398#issuecomment-11279441
+
+*/
 
 var cp = require('child_process');
 var fs = require('fs');
