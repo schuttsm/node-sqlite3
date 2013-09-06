@@ -3,11 +3,15 @@
 // script adapted from https://github.com/laverdet/node-fibers
 /*
 TODO
+ - checksumming
+ - travis auto-build and post to s3 for linux
+ - document how to build for mac and windows
  - be able to target multiple node versions and arches
    - so, enable build to request downloading and caching more than one
  - move to tar.gz not just .gz
  - use process.versions.modules?
  - use require() to support node_modules location of binary?
+ - add back development mode that detects changes to src/ files and rebuilds
 
  https://github.com/isaacs/npm/issues/1891#issuecomment-17051356
  https://github.com/joyent/node/issues/4398#issuecomment-11279441
