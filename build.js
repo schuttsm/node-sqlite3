@@ -12,6 +12,8 @@ TODO
  - use process.versions.modules?
  - use require() to support node_modules location of binary?
  - add back development mode that detects changes to src/ files and rebuilds
+ - or maybe just disable binary usage when not on a git tag?
+ - document how community can provide binaries?
 
  https://github.com/isaacs/npm/issues/1891#issuecomment-17051356
  https://github.com/joyent/node/issues/4398#issuecomment-11279441
