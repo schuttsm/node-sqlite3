@@ -2,11 +2,15 @@
 
 /*
 
-TODO
+Must do:
+ - package up win binaries
+
+Really should do:
+ - checksumming
+
+Future:
  - dump build info into .txt sidecar to binary
    - include full node version and v8 version
- - package up win binaries
- - checksumming
  - travis/nvm/32bit auto-build and post to s3 for linux
  - be able to target multiple node versions and arches
    - so, enable build to request downloading and caching more than one
