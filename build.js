@@ -3,20 +3,16 @@
 /*
 
 TODO
- - release first without binaries?
- - move to tar.gz not just .gz
+ - dump build info into .txt sidecar to binary
+   - include full node version and v8 version
+ - package up win binaries
  - checksumming
- - travis auto-build and post to s3 for linux
- - document how to build for mac and windows
+ - travis/nvm/32bit auto-build and post to s3 for linux
  - be able to target multiple node versions and arches
    - so, enable build to request downloading and caching more than one
  - use require() to support node_modules location of binary?
  - add back development mode that detects changes to src/ files and rebuilds
  - or maybe just disable binary usage when not on a git tag?
- - document how community can provide binaries?
-
- https://github.com/isaacs/npm/issues/1891#issuecomment-17051356
- https://github.com/joyent/node/issues/4398#issuecomment-11279441
 
 */
 
