@@ -30,10 +30,6 @@
         "type": "git",
         "url": "git://github.com/developmentseed/node-sqlite3.git"
     },
-    "dependencies": {
-         "get":"1.2.x"
-    },
-    "bundledDependencies": ["get"],
     "engines": {
         "node": ">= 0.6.13 < 0.11.0"
     },

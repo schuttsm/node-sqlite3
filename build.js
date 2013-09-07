@@ -3,13 +3,14 @@
 // script adapted from https://github.com/laverdet/node-fibers
 /*
 TODO
+ - release first without binaries?
+ - move to tar.gz not just .gz
+ - use process.versions.modules?
  - checksumming
  - travis auto-build and post to s3 for linux
  - document how to build for mac and windows
  - be able to target multiple node versions and arches
    - so, enable build to request downloading and caching more than one
- - move to tar.gz not just .gz
- - use process.versions.modules?
  - use require() to support node_modules location of binary?
  - add back development mode that detects changes to src/ files and rebuilds
  - or maybe just disable binary usage when not on a git tag?
@@ -23,7 +24,9 @@ TODO
 var cp = require('child_process');
 var fs = require('fs');
 var path = require('path');
-var get = require('get');
+var ProgressBar = require('./build-util/node-progress.js');
+var http = require('http');
+var url = require('url');
 var module_package = require('./package.json');
 var zlib = require('zlib');
 
@@ -89,28 +92,6 @@ var remote_file_path = remote_binary_url + versioned_module_name + '.gz';
 var staged_module_path = path.join(__dirname, 'precompiled', versioned_module_name);
 var runtime_module_path = path.join(__dirname, 'lib', module_file_name);
 
-if (!force) {
-    try {
-        stat(true);
-    } catch (ex) {
-        download(function(err) {
-            if (err) {
-                console.log(log_prefix + remote_file_path + ' not found, falling back to source compile (' + err + ')');
-                build();
-            } else {
-                try {
-                    stat(true);
-                } catch (ex) {
-                    // Stat failed
-                    build();
-                }
-            }        
-        });
-    }
-} else {
-    build();
-}
-
 function download(cb) {
     var dl = get({uri:remote_file_path,max_redirs:1,timeout:5000});
     //var gunzip = zlib.createGunzip();
@@ -123,6 +104,56 @@ function download(cb) {
             fs.writeFile(runtime_module_path,filedata,cb);
         });
     })
+}
+
+function download_progress(callback) {
+    console.log(log_prefix + 'Checking for ' + remote_file_path);
+    var uri = url.parse(remote_file_path);
+    var req = http.request(uri);
+    req.on('response', function(res){
+        // needed for end to be called
+        res.resume();
+        if (res.statusCode !== 200) {
+            return callback(new Error('Server returned '+ res.statusCode));
+        }
+        var len = parseInt(res.headers['content-length'], 10);
+        console.log();
+        var bar = new ProgressBar('  downloading [:bar] :percent :etas', {
+          complete: '='
+        , incomplete: ' '
+        , width: 40
+        , total: len
+        });
+        function returnBuffer() {
+            for (var length = 0, i = 0; i < out.length; i++) {
+                length += out[i].length;
+            }
+            var result = new Buffer(length);
+            for (var pos = 0, j = 0; j < out.length; j++) {
+                out[j].copy(result, pos);
+                pos += out[j].length;
+            }
+            zlib.gunzip(result,function(err,filedata) {
+                if (err) return cb(err);
+                fs.writeFile(runtime_module_path,filedata,callback);
+            });
+        }
+        var out = [];
+        res.on('data', function(chunk) {
+            bar.tick(chunk.length);
+            out.push(chunk);
+        });
+        res.on('end', function(){
+            returnBuffer();
+        });
+        res.on('close', function(){
+            returnBuffer();
+        });
+    });
+    req.on('error', function(err){
+        callback(err);
+    });
+    req.end();
 }
 
 function stat(try_build) {
@@ -151,6 +182,12 @@ function build() {
             return process.exit(1);
         }
     });
+    cmd.stdout.on('data',function(data) {
+        console.log(data.slice(0,data.length-1).toString());
+    })
+    cmd.stderr.on('data',function(data) {
+        console.error(data.slice(0,data.length-1).toString());
+    })
     cmd.on('exit', function(err) {
         if (err) {
             if (err === 127) {
@@ -186,3 +223,27 @@ function move() {
         stat(false);
     }
 }
+
+if (!force) {
+    try {
+        stat(true);
+    } catch (ex) {
+        download_progress(function(err) {
+            if (err) {
+                console.log(log_prefix + remote_file_path + ' not found, falling back to source compile (' + err + ')');
+                build();
+            } else {
+                try {
+                    stat(true);
+                } catch (ex) {
+                    // Stat failed
+                    console.log(log_prefix + runtime_module_path + ' not found, falling back to source compile');
+                    build();
+                }
+            }        
+        });
+    }
+} else {
+    build();
+}
+
