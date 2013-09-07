@@ -3,7 +3,7 @@
 /*
 
 Must do:
- - package up win binaries
+ - new bucket + bucket logging
 
 Really should do:
  - checksumming

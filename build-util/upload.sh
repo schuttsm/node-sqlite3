@@ -1,7 +1,16 @@
 export ROOTDIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd ${ROOTDIR}/../stage/
-#tar cfHz 
-#tar cfHz out.tar.gz node-v11-darwin-x64/
+
+NAME="node_sqlite3-v2.1.a"
+PLATFORM="win32"
+ARCH="x64"
+NODE_ABI="node-v11"
+function make_tar {
+	cd ${NAME}
+	tar cfHz ../${NAME}-${NODE_ABI}-${PLATFORM}-${ARCH}.tar.gz ${NODE_ABI}-${PLATFORM}-${ARCH}/
+	cd ../
+}
+
 
 # extracter = tar.Extract({ path: devDir, strip: 1, filter: isValid })
 #gzip *.node
