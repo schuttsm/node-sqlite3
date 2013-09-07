@@ -1,11 +1,10 @@
 #!/usr/bin/env node
 
-// script adapted from https://github.com/laverdet/node-fibers
 /*
+
 TODO
  - release first without binaries?
  - move to tar.gz not just .gz
- - use process.versions.modules?
  - checksumming
  - travis auto-build and post to s3 for linux
  - document how to build for mac and windows
@@ -21,160 +20,51 @@ TODO
 
 */
 
+var package_json = require('./package.json');
+var Binary = require('./lib/binary_name.js').Binary;
+var util = require('./build-util/tools.js');
+var mkdirp = require('mkdirp');
+// https://github.com/isaacs/node-tar/issues/11
+//var tar = require('tar');
+var targz = require('tar.gz');
 var cp = require('child_process');
 var fs = require('fs');
 var path = require('path');
-var ProgressBar = require('./build-util/node-progress.js');
-var http = require('http');
-var url = require('url');
-var module_package = require('./package.json');
-var zlib = require('zlib');
 
-var module_name = 'node_sqlite3';
-var log_prefix = '['+module_name+']: '
-var module_file_name = module_name + '.node';
-var remote_binary_url = 'http://node-sqlite3.s3.amazonaws.com/';
-
-var force = false;
-var stage_binary = false;
-var arch = process.arch;
-var platform = process.platform;
-var v8 = process.versions.v8.split('.').slice(0,2).join('.');
-var module_maj_min = module_package.version.split('.').slice(0,2).join('.')
-var module_abi = module_package.abi;
-
-function build_module_name(module_name,platform,arch,v8,module_maj_min,module_abi) {
-    var name = module_name + '-v' + module_maj_min + '.' + module_abi;
-    return name += '-v8-' + v8 + '-' + platform + '-' + arch + '.node';
+var opts = {
+    name: 'node_sqlite3',
+    force: false,
+    stage: false,
+    target_arch: process.arch,
+    platform: process.platform,
+    uri: 'http://node-sqlite3.s3.amazonaws.com/'
 }
 
-// Args passed directly
-var args = process.argv.slice(2);
-
-// also respect flags passed to npm install
-if (process.env.npm_config_argv) {
-    var argv_obj = JSON.parse(process.env.npm_config_argv);
-    args = args.concat(argv_obj.cooked.slice(1))
+function log(msg) {
+    console.log('['+package_json.name+']: ' + msg);
 }
 
-stage_binary = (args.indexOf('--stage') > -1);
-if (stage_binary) {
-    force = true;
-} else {
-    var from_source = args.indexOf('--build-from-source');
-    if ( from_source > -1) {
-        // no specific module name passed
-        var next_arg = args[from_source+1];
-        if (!next_arg || next_arg.indexOf('--') <= 0) {
-            force = true;
-        } else if (next_arg == 'sqlite3'){
-            force = true; 
-        }
-}
-}
-
-var target_arch = args.indexOf('--target_arch');
-if (target_arch > -1) {
-    var next_arg = args[target_arch+1];
-    if (next_arg && next_arg.indexOf('--') < 0) {
-        arch = next_arg;
+function stat(opts,try_build) {
+    fs.statSync(opts.runtime_module_path);
+    log("Found " + opts.runtime_module_path + "'");
+    if (!opts.stage && (opts.target_arch == process.arch)) {
+        cp.execFile(process.execPath, ['lib/sqlite3'], function(err, stdout, stderr) {
+            if (err || stderr) {
+                log('Testing the binary failed: "' + err || stderr + '"');
+                if (try_build) {
+                    log('Attempting source compile...');
+                    build(opts);
+                }
+            } else {
+                log('Sweet: "' + opts.binary.filename() + '" is valid, node-sqlite3 is now installed!');
+            }
+        });
     }
 }
 
-if (!{ia32: true, x64: true, arm: true}.hasOwnProperty(arch)) {
-    console.error('Unsupported (?) architecture: `'+ arch+ '`');
-    process.exit(1);
-}
-
-var build_module_path = path.join(__dirname, 'build', module_file_name);
-var versioned_module_name = build_module_name(module_name,platform,arch,v8,module_maj_min,module_abi);
-var remote_file_path = remote_binary_url + versioned_module_name + '.gz';
-var staged_module_path = path.join(__dirname, 'precompiled', versioned_module_name);
-var runtime_module_path = path.join(__dirname, 'lib', module_file_name);
-
-function download(cb) {
-    var dl = get({uri:remote_file_path,max_redirs:1,timeout:5000});
-    //var gunzip = zlib.createGunzip();
-    console.log(log_prefix + 'Attempting to download ' + remote_file_path);
-    dl.asBuffer(function(err,buffer,headers) {
-        if (err) return cb(err);
-        console.log(log_prefix + 'Uncompressing to ' + runtime_module_path);
-        zlib.gunzip(buffer,function(err,filedata) {
-            if (err) return cb(err);
-            fs.writeFile(runtime_module_path,filedata,cb);
-        });
-    })
-}
-
-function download_progress(callback) {
-    console.log(log_prefix + 'Checking for ' + remote_file_path);
-    var uri = url.parse(remote_file_path);
-    var req = http.request(uri);
-    req.on('response', function(res){
-        // needed for end to be called
-        res.resume();
-        if (res.statusCode !== 200) {
-            return callback(new Error('Server returned '+ res.statusCode));
-        }
-        var len = parseInt(res.headers['content-length'], 10);
-        console.log();
-        var bar = new ProgressBar('  downloading [:bar] :percent :etas', {
-          complete: '='
-        , incomplete: ' '
-        , width: 40
-        , total: len
-        });
-        function returnBuffer() {
-            for (var length = 0, i = 0; i < out.length; i++) {
-                length += out[i].length;
-            }
-            var result = new Buffer(length);
-            for (var pos = 0, j = 0; j < out.length; j++) {
-                out[j].copy(result, pos);
-                pos += out[j].length;
-            }
-            zlib.gunzip(result,function(err,filedata) {
-                if (err) return cb(err);
-                fs.writeFile(runtime_module_path,filedata,callback);
-            });
-        }
-        var out = [];
-        res.on('data', function(chunk) {
-            bar.tick(chunk.length);
-            out.push(chunk);
-        });
-        res.on('end', function(){
-            returnBuffer();
-        });
-        res.on('close', function(){
-            returnBuffer();
-        });
-    });
-    req.on('error', function(err){
-        callback(err);
-    });
-    req.end();
-}
-
-function stat(try_build) {
-    fs.statSync(runtime_module_path);
-    console.log(log_prefix + "Found " + runtime_module_path + "'");
-    cp.execFile(process.execPath, ['lib/sqlite3'], function(err, stdout, stderr) {
-        if (err || stderr) {
-            console.log(log_prefix + 'Testing the binary failed: "' + err || stderr + '"');
-            if (try_build) {
-                console.log(log_prefix + 'Attempting source compile...');
-                build();
-            }
-        } else {
-            console.log(log_prefix + 'Sweet: "' + module_file_name + '" is valid, node-sqlite3 is now installed!');
-        }
-    });
-}
-
-function build() {
+function build(opts) {
     var shell_cmd = process.platform === 'win32' ? 'node-gyp.cmd' : 'node-gyp';
-    var shell_args = ['rebuild'].concat(args);
+    var shell_args = ['rebuild'].concat(opts.args);
     var cmd = cp.spawn(shell_cmd,shell_args);
     cmd.on('error', function(err) {
         if (err) {
@@ -185,9 +75,11 @@ function build() {
     cmd.stdout.on('data',function(data) {
         console.log(data.slice(0,data.length-1).toString());
     })
+    /*
     cmd.stderr.on('data',function(data) {
         console.error(data.slice(0,data.length-1).toString());
     })
+    */
     cmd.on('exit', function(err) {
         if (err) {
             if (err === 127) {
@@ -200,50 +92,87 @@ function build() {
             }
             return process.exit(err);
         }
-        move();
+        move(opts);
     });
 }
 
-function move() {
+function tarball(opts) {
+    var source = path.dirname(opts.staged_module_file_name);
+    console.log('compressing: ' + source + ' to ' + opts.tarball_path);
+    new targz(9).compress(source, opts.tarball_path, function(err) {
+        if (err) throw err;
+        log('Versioned binary staged for upload at ' + opts.tarball_path);
+    });
+}
+
+function move(opts) {
     try {
-        fs.statSync(build_module_path);
+        fs.statSync(opts.build_module_path);
     } catch (ex) {
-        console.error('Build succeeded but target not found at ' + build_module_path);
+        console.error('Build succeeded but target not found at ' + opts.build_module_path);
         process.exit(1);
     }
-    fs.renameSync(build_module_path,runtime_module_path);
-    if (stage_binary) {
+    try {
+        log('creating: ' + opts.runtime_module_path)
+        mkdirp.sync(path.dirname(opts.runtime_module_path));
+    } catch (err) {
+        log(err);
+    }
+    fs.renameSync(opts.build_module_path,opts.runtime_module_path);
+    if (opts.stage) {
         try {
-            fs.mkdirSync(path.dirname(staged_module_path));
-        } catch (ex) {}
-        fs.writeFileSync(staged_module_path,fs.readFileSync(runtime_module_path));
-        console.log(log_prefix + 'Versioned binary staged for upload at ' + staged_module_path);
+            log('creating staging: ' + path.dirname(opts.staged_module_file_name))
+            mkdirp.sync(path.dirname(opts.staged_module_file_name));
+        } catch (err) {
+            log(err);
+        }
+        fs.writeFileSync(opts.staged_module_file_name,fs.readFileSync(opts.runtime_module_path));
+        tarball(opts);
     } else {
-        console.log(log_prefix + 'Installed in `' + runtime_module_path + '`');
-        stat(false);
+        log('Installed in `' + opts.runtime_module_path + '`');
+        stat(opts,false);
     }
 }
 
-if (!force) {
+
+var opts = util.parse_args(process.argv.slice(2),opts);
+opts.binary = new Binary(opts);
+var versioned = opts.binary.getRequirePath({platform:opts.platform,arch:opts.target_arch});
+//opts.runtime_module_path = path.join(__dirname, 'lib', opts.binary.filename());
+opts.runtime_module_path = path.join(__dirname, 'lib', versioned);
+opts.runtime_folder = path.join(__dirname, 'lib', 'binding');
+opts.staged_module_path = path.join(__dirname, 'stage', opts.binary.getModuleAbi(), opts.binary.getBasePath());
+opts.staged_module_file_name = path.join(opts.staged_module_path,opts.binary.filename());
+opts.build_module_path = path.join(__dirname, 'build', opts.binary.filename());
+opts.tarball_path = path.join(__dirname, 'stage', opts.binary.getArchivePath());
+
+if (!{ia32: true, x64: true, arm: true}.hasOwnProperty(opts.target_arch)) {
+    console.error('Unsupported (?) architecture: `'+ opts.target_arch+ '`');
+    process.exit(1);
+}
+
+if (!opts.force) {
     try {
-        stat(true);
+        stat(opts,true);
     } catch (ex) {
-        download_progress(function(err) {
+        var from = opts.binary.getRemotePath();
+        var to = opts.runtime_folder;
+        util.download(from,to,function(err) {
             if (err) {
-                console.log(log_prefix + remote_file_path + ' not found, falling back to source compile (' + err + ')');
-                build();
+                log(from + ' not found, falling back to source compile (' + err + ')');
+                build(opts);
             } else {
                 try {
-                    stat(true);
+                    stat(opts,true);
                 } catch (ex) {
                     // Stat failed
-                    console.log(log_prefix + runtime_module_path + ' not found, falling back to source compile');
-                    build();
+                    log(to + ' not found, falling back to source compile');
+                    build(opts);
                 }
             }        
         });
     }
 } else {
-    build();
+    build(opts);
 }
 
