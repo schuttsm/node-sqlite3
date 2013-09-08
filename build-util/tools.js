@@ -41,6 +41,7 @@ function download(from,to,callback) {
             found_remote = true;
         });
         res.on('end', function(){
+            console.log('\n');
             returnBuffer();
         });
         res.on('close', function(){
