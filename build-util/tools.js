@@ -1,4 +1,4 @@
-var ProgressBar = require('./node-progress.js');
+var ProgressBar = require('progress');
 var http = require('http');
 var url = require('url');
 var fs = require('fs');
