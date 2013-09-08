@@ -199,7 +199,9 @@ if (opts.force) {
         test(opts,true,done);
     } catch (ex) {
         var from = opts.binary.getRemotePath();
-        var tmpfile = path.join(os.tmpdir(),path.basename(from));
+        var tmpdir = '/tmp/';
+        if (os.tmpdir) tmpdir = os.tmpdir();
+        var tmpfile = path.join(tmpdir,path.basename(from));
         util.download(from,tmpfile,function(err,found_remote) {
             if (err) {
                 if (!found_remote) {
