@@ -8,7 +8,10 @@ cd ../
 if [ ${UNAME} = 'Darwin' ]; then
     # note: requires FAT (duel-arch) node installed via .pkg
     npm install --stage --target_arch=ia32
+    npm install --stage --target_arch=ia32 --debug
     npm install --stage --target_arch=x64
+    npm install --stage --target_arch=x64 --debug
+
 elif [ ${UNAME} = 'Linux' ]; then
     rm -rf ./bin/linux-*
     apt-get -y update

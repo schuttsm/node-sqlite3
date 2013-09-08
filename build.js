@@ -11,7 +11,6 @@ Future:
  - travis/nvm/32bit auto-build and post to s3 for linux
  - script to check for acl-public
  - use require() to support node_modules location of binary?
- - support debug/release via different base url?
 */
 
 var package_json = require('./package.json');
