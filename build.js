@@ -2,24 +2,16 @@
 
 /*
 
-Must do:
- - new bucket + bucket logging
+TODO
 
 Really should do:
  - checksumming
- - script to check for acl-public
 
 Future:
- - dump build info into .txt sidecar to binary
-   - include full node version and v8 version
  - travis/nvm/32bit auto-build and post to s3 for linux
- - be able to target multiple node versions and arches
-   - so, enable build to request downloading and caching more than one
+ - script to check for acl-public
  - use require() to support node_modules location of binary?
- - add back development mode that detects changes to src/ files and rebuilds
- - or maybe just disable binary usage when not on a git tag?
  - support debug/release via different base url?
-
 */
 
 var package_json = require('./package.json');
@@ -38,9 +30,10 @@ var opts = {
     name: 'node_sqlite3',
     force: false,
     stage: false,
+    configuration: 'Release',
     target_arch: process.arch,
     platform: process.platform,
-    uri: 'http://node-sqlite3.s3.amazonaws.com/',
+    uri: 'http://dei9kzb8scfgo.cloudfront.net/',
     paths: {}
 }
 
@@ -164,8 +157,12 @@ function move(opts,callback) {
         fs.writeFileSync(opts.paths.staged_module_file_name,fs.readFileSync(opts.paths.runtime_module_path));
         // drop build metadata into build folder
         var metapath = path.join(path.dirname(opts.paths.staged_module_file_name),'build-info.json');
+        // more build info
         opts.date = new Date();
-        //opts.
+        opts.node_features = process.features;
+        opts.versions = process.versions;
+        opts.config = process.config;
+        opts.execPath = process.execPath;
         fs.writeFileSync(metapath,JSON.stringify(opts,null,2));
         tarball(opts,callback);
     } else {
@@ -182,11 +179,11 @@ var opts = util.parse_args(process.argv.slice(2),opts);
 opts.binary = new Binary(opts);
 var versioned = opts.binary.getRequirePath();
 opts.paths.runtime_module_path = rel(path.join(__dirname, 'lib', versioned));
-opts.paths.runtime_folder = rel(path.join(__dirname, 'lib', 'binding'));
+opts.paths.runtime_folder = rel(path.join(__dirname, 'lib', 'binding',opts.binary.configuration));
 var staged_module_path = path.join(__dirname, 'stage', opts.binary.getModuleAbi(), opts.binary.getBasePath());
 opts.paths.staged_module_file_name = rel(path.join(staged_module_path,opts.binary.filename()));
-opts.paths.build_module_path = rel(path.join(__dirname, 'build', opts.binary.filename()));
-opts.paths.tarball_path = rel(path.join(__dirname, 'stage', opts.binary.getArchivePath()));
+opts.paths.build_module_path = rel(path.join(__dirname, 'build', opts.binary.configuration, opts.binary.filename()));
+opts.paths.tarball_path = rel(path.join(__dirname, 'stage', opts.binary.configuration, opts.binary.getArchivePath()));
 
 if (!{ia32: true, x64: true, arm: true}.hasOwnProperty(opts.target_arch)) {
     return done(new Error('Unsupported (?) architecture: '+ opts.target_arch+ ''));
@@ -199,8 +196,17 @@ if (opts.force) {
         test(opts,true,done);
     } catch (ex) {
         var from = opts.binary.getRemotePath();
-        var tmpdir = '/tmp/';
-        if (os.tmpdir) tmpdir = os.tmpdir();
+        var tmpdir;
+        if (os.tmpdir) {
+            tmpdir = os.tmpdir();
+        } else {
+            var tmpdir = '/tmp/node-sqlite3-' + opts.binary.configuration;
+            try {
+                mkdirp.sync(tmpdir);
+            } catch (err) {
+                log_debug(err);
+            }
+        }
         var tmpfile = path.join(tmpdir,path.basename(from));
         util.download(from,tmpfile,function(err,found_remote) {
             if (err) {

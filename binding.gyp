@@ -26,17 +26,6 @@
         'src/node_sqlite3.cc',
         'src/statement.cc'
       ],
-    },
-    {
-      'target_name': 'action_after_build',
-      'type': 'none',
-      'dependencies': [ 'node_sqlite3' ],
-      'copies': [
-        {
-          'files': [ '<(PRODUCT_DIR)/node_sqlite3.node' ],
-          'destination': './build/'
-        }
-      ]
     }
   ]
 }

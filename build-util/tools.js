@@ -68,6 +68,9 @@ function parse_args(_args, opts) {
         var argv_obj = JSON.parse(process.env.npm_config_argv);
         args = args.concat(argv_obj.cooked.slice(1))
     }
+    var debug = (args.indexOf('--debug') > -1);
+    if (debug) opts.configuration = 'Debug';
+
     opts.stage = (args.indexOf('--stage') > -1);
     if (opts.stage) {
         opts.force = true;
