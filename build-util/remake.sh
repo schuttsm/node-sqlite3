@@ -6,6 +6,7 @@ cd $ROOTDIR
 cd ../
 
 if [ ${UNAME} = 'Darwin' ]; then
+    # note: requires FAT (duel-arch) node installed via .pkg
     npm install --stage --target_arch=ia32
     npm install --stage --target_arch=x64
 elif [ ${UNAME} = 'Linux' ]; then

@@ -1,9 +1,7 @@
 var ProgressBar = require('./node-progress.js');
 var http = require('http');
 var url = require('url');
-var zlib = require('zlib');
 var fs = require('fs');
-var targz = require('tar.gz');
 
 function download(from,to,callback) {
     var uri = url.parse(from);
@@ -12,7 +10,7 @@ function download(from,to,callback) {
         // needed for end to be called
         res.resume();
         if (res.statusCode !== 200) {
-            return callback(new Error('Server returned '+ res.statusCode));
+            return callback(new Error('Server returned '+ res.statusCode),false);
         }
         var len = parseInt(res.headers['content-length'], 10);
         console.log();
@@ -31,21 +29,16 @@ function download(from,to,callback) {
                 out[j].copy(result, pos);
                 pos += out[j].length;
             }
-            var tmp = '/tmp/file.tar.gz';
-            fs.writeFile(tmp,result,function(err) {
-              new targz().extract(tmp, to, callback);
+            fs.writeFile(to,result,function(err) {
+                if (err) return callback(err,true);
+                return callback(null,true);
             });
-            /*
-            zlib.gunzip(result,function(err,filedata) {
-                if (err) return cb(err);
-                fs.writeFile(to,filedata,callback);
-            });
-            */
         }
         var out = [];
         res.on('data', function(chunk) {
             bar.tick(chunk.length);
             out.push(chunk);
+            found_remote = true;
         });
         res.on('end', function(){
             returnBuffer();
@@ -55,7 +48,7 @@ function download(from,to,callback) {
         });
     });
     req.on('error', function(err){
-        callback(err);
+        callback(err,false);
     });
     req.end();
 }
